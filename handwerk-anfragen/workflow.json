@@ -1,0 +1,513 @@
+{
+  "name": "Handwerk: Kundenanfragen per E-Mail sortieren, Notfälle melden, fehlende Angaben nachfragen",
+  "nodes": [
+    {
+      "parameters": {
+        "mailbox": "INBOX",
+        "postProcessAction": "read",
+        "format": "simple",
+        "options": {}
+      },
+      "id": "bcc70e3c-3e52-45d2-8eb3-ba481960e529",
+      "name": "New inquiry email",
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f1697d12-948b-45d1-b8b1-55cc38fcd82e",
+              "name": "companyName",
+              "value": "Muster Haustechnik GmbH",
+              "type": "string"
+            },
+            {
+              "id": "a7fa2908-2e6c-4d91-805e-3569eddf8e0f",
+              "name": "serviceAreaPostcodePrefixes",
+              "value": "40, 41, 42",
+              "type": "string"
+            },
+            {
+              "id": "6fb3ddca-0865-4dc4-91c9-e17c30e2c15f",
+              "name": "senderAddress",
+              "value": "anfragen@example.com",
+              "type": "string"
+            },
+            {
+              "id": "3817bc9e-5114-40c3-8438-34c552a9db1a",
+              "name": "emergencyRecipient",
+              "value": "notdienst@example.com",
+              "type": "string"
+            },
+            {
+              "id": "ee7df62c-6215-4863-a9bb-08289f26a08b",
+              "name": "timezone",
+              "value": "Europe/Berlin",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "6b0e46bb-d98e-4a61-8a07-eca0902148ec",
+      "name": "Settings",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "text": "={{ 'Betreff: ' + $('New inquiry email').item.json.subject + '\\n\\n' + ($('New inquiry email').item.json.text || $('New inquiry email').item.json.textPlain || '') }}",
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"customer_name\": {\n      \"type\": \"string\",\n      \"description\": \"Full name of the customer, empty if not given\"\n    },\n    \"phone\": {\n      \"type\": \"string\",\n      \"description\": \"Phone number as written, empty if not given\"\n    },\n    \"street\": {\n      \"type\": \"string\",\n      \"description\": \"Street and house number of the job site, empty if not given\"\n    },\n    \"postcode\": {\n      \"type\": \"string\",\n      \"description\": \"Postcode of the job site (5 digits DE, 4 digits AT/CH), empty if not given\"\n    },\n    \"city\": {\n      \"type\": \"string\",\n      \"description\": \"City of the job site, empty if not given\"\n    },\n    \"trade\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"Sanitär\",\n        \"Heizung\",\n        \"Klima/Lüftung\",\n        \"Elektro\",\n        \"Sonstiges\"\n      ],\n      \"description\": \"Which trade the request belongs to\"\n    },\n    \"request_type\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"Notdienst\",\n        \"Reparatur\",\n        \"Wartung\",\n        \"Neuinstallation/Angebot\",\n        \"Sonstiges\"\n      ]\n    },\n    \"urgency\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"emergency\",\n        \"soon\",\n        \"plannable\"\n      ],\n      \"description\": \"emergency = active water leak, no heating or hot water in cold weather, gas smell, flooding; soon = defect without immediate damage; plannable = maintenance, quote, new installation\"\n    },\n    \"device_info\": {\n      \"type\": \"string\",\n      \"description\": \"Device, manufacturer, model or age if mentioned (e.g. 'Gastherme Vaillant, ca. 15 Jahre'), empty if not given\"\n    },\n    \"property_type\": {\n      \"type\": \"string\",\n      \"enum\": [\n        \"Einfamilienhaus\",\n        \"Wohnung\",\n        \"Mehrfamilienhaus\",\n        \"Gewerbe\",\n        \"unbekannt\"\n      ]\n    },\n    \"preferred_dates\": {\n      \"type\": \"string\",\n      \"description\": \"Preferred dates or times mentioned by the customer, empty if none\"\n    },\n    \"summary\": {\n      \"type\": \"string\",\n      \"description\": \"Summary of the request in German, at most two sentences, factual\"\n    }\n  },\n  \"required\": [\n    \"trade\",\n    \"request_type\",\n    \"urgency\",\n    \"summary\"\n  ]\n}",
+        "options": {
+          "systemPromptTemplate": "You read customer inquiries that a German-speaking plumbing, heating and HVAC company (Sanitär, Heizung, Klima) receives by email. Extract only what the customer actually wrote. Never invent a phone number, address or device. If something is missing, return an empty string. Classify urgency strictly: only real emergencies (water leaking right now, no heating or hot water, gas smell, flooding) are 'emergency'. Write the summary in German."
+        }
+      },
+      "id": "98e8904a-853c-4268-a7a5-651363d2e833",
+      "name": "Extract inquiry details",
+      "type": "@n8n/n8n-nodes-langchain.informationExtractor",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "41117c60-4fcc-462f-9e2d-fd2ab1556bc3",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        440,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combines the AI result with the original email and decides what is missing.\nconst settings = $('Settings').first().json;\nconst mail = $('New inquiry email').first().json;\nconst ai = $input.first().json.output ?? $input.first().json;\n\nconst fromRaw = String(mail.from ?? '');\nconst senderEmail = (fromRaw.match(/<([^>]+)>/)?.[1] ?? fromRaw).trim();\n\n// Service area: list of postcode prefixes from Settings, e.g. \"40, 41, 42\"\nconst prefixes = String(settings.serviceAreaPostcodePrefixes || '')\n  .split(',').map(p => p.trim()).filter(Boolean);\nconst postcode = String(ai.postcode || '').trim();\nlet inServiceArea = 'unbekannt';\nif (postcode && prefixes.length) {\n  inServiceArea = prefixes.some(p => postcode.startsWith(p)) ? 'ja' : 'nein';\n}\n\n// What we need before someone can call back or plan the job\nconst missing = [];\nif (!String(ai.phone || '').trim()) missing.push('Telefonnummer für den Rückruf');\nif (!postcode || !String(ai.street || '').trim()) missing.push('Adresse des Einsatzorts (Straße, Hausnummer, PLZ)');\nif (['Reparatur', 'Wartung'].includes(ai.request_type) && !String(ai.device_info || '').trim()) {\n  missing.push('Gerät und Hersteller (z. B. Typenschild), gern mit Foto');\n}\n\nconst urgencyLabel = { emergency: 'Notfall', soon: 'zeitnah', plannable: 'planbar' }[ai.urgency] ?? 'planbar';\n\nreturn [{\n  json: {\n    receivedAt: $now.setZone(settings.timezone || 'Europe/Berlin').toFormat('yyyy-MM-dd HH:mm'),\n    senderEmail,\n    subject: mail.subject ?? '',\n    customerName: ai.customer_name ?? '',\n    phone: ai.phone ?? '',\n    address: [ai.street, [postcode, ai.city].filter(Boolean).join(' ')].filter(Boolean).join(', '),\n    trade: ai.trade,\n    requestType: ai.request_type,\n    urgency: ai.urgency,\n    urgencyLabel,\n    deviceInfo: ai.device_info ?? '',\n    propertyType: ai.property_type ?? 'unbekannt',\n    preferredDates: ai.preferred_dates ?? '',\n    summary: ai.summary ?? '',\n    inServiceArea,\n    missingInfo: missing,\n    missingInfoText: missing.join('; '),\n    isEmergency: ai.urgency === 'emergency',\n    needsFollowUp: missing.length > 0 && ai.urgency !== 'emergency' && inServiceArea !== 'nein',\n  }\n}];"
+      },
+      "id": "fea331fb-9342-439f-abc8-e976348c6257",
+      "name": "Prepare inquiry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        760,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0bfdb63e-f484-46b1-be81-24fafa8524eb",
+              "name": "Eingang",
+              "value": "={{ $json.receivedAt }}",
+              "type": "string"
+            },
+            {
+              "id": "6cb57ad1-ba15-4510-a8b5-bb606aae0a2e",
+              "name": "Dringlichkeit",
+              "value": "={{ $json.urgencyLabel }}",
+              "type": "string"
+            },
+            {
+              "id": "8b08592a-0040-4ad1-811e-c4787cc67ad2",
+              "name": "Kunde",
+              "value": "={{ $json.customerName }}",
+              "type": "string"
+            },
+            {
+              "id": "1a732127-0312-4b65-bd0d-5f017ecdb4fb",
+              "name": "Telefon",
+              "value": "={{ $json.phone }}",
+              "type": "string"
+            },
+            {
+              "id": "2509e546-f9a1-466a-92a5-0f9fd9d8e14a",
+              "name": "E-Mail",
+              "value": "={{ $json.senderEmail }}",
+              "type": "string"
+            },
+            {
+              "id": "620b1863-d90f-4ce5-9fc8-bdd100892881",
+              "name": "Einsatzort",
+              "value": "={{ $json.address }}",
+              "type": "string"
+            },
+            {
+              "id": "3e63941a-4eec-405c-aa56-bde3b3a9a8f4",
+              "name": "Im Einzugsgebiet",
+              "value": "={{ $json.inServiceArea }}",
+              "type": "string"
+            },
+            {
+              "id": "4366140b-e76f-4882-954b-31e94d9075c7",
+              "name": "Gewerk",
+              "value": "={{ $json.trade }}",
+              "type": "string"
+            },
+            {
+              "id": "631afe34-cd81-44dd-80a4-647e833990fe",
+              "name": "Art",
+              "value": "={{ $json.requestType }}",
+              "type": "string"
+            },
+            {
+              "id": "166dc2ef-c31d-4a9a-929d-3fb97ab3e10d",
+              "name": "Gerät",
+              "value": "={{ $json.deviceInfo }}",
+              "type": "string"
+            },
+            {
+              "id": "25a25aa2-4220-43b6-bbcd-766caf996ecb",
+              "name": "Objekt",
+              "value": "={{ $json.propertyType }}",
+              "type": "string"
+            },
+            {
+              "id": "d491f622-1461-4342-9599-29e1eb2694e6",
+              "name": "Wunschtermin",
+              "value": "={{ $json.preferredDates }}",
+              "type": "string"
+            },
+            {
+              "id": "14b79089-9ee9-4089-8de3-189ac74ac215",
+              "name": "Zusammenfassung",
+              "value": "={{ $json.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "63cb1307-9290-4c93-a6c6-8c624aa3a03c",
+              "name": "Fehlende Angaben",
+              "value": "={{ $json.missingInfoText }}",
+              "type": "string"
+            },
+            {
+              "id": "d0107ff4-dd28-4e52-9b10-6349a50b1de6",
+              "name": "Status",
+              "value": "neu",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8d5b5d31-77bd-4c56-96d5-d23584933d5f",
+      "name": "Sheet row",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1000,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Anfragen"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "4d4d01c7-1b1c-471c-aa6c-f0c79cb62864",
+      "name": "Save to inquiry sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1220,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "803f50d0-061f-4b49-a784-98026f61c886",
+              "leftValue": "={{ $json.isEmergency }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c1cb2b49-42a4-4ac4-88dc-d4c0a3527a88",
+      "name": "Emergency?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $('Settings').first().json.senderAddress }}",
+        "toEmail": "={{ $('Settings').first().json.emergencyRecipient }}",
+        "subject": "={{ 'NOTFALL: ' + $json.trade + ', ' + ($json.address || 'Adresse fehlt') }}",
+        "emailFormat": "text",
+        "text": "={{ 'NOTFALL-Anfrage eingegangen (' + $json.receivedAt + ')\\n\\n' + 'Kunde: ' + ($json.customerName || 'unbekannt') + '\\n' + 'Telefon: ' + ($json.phone || 'fehlt, Antwort per E-Mail an ' + $json.senderEmail) + '\\n' + 'Einsatzort: ' + ($json.address || 'fehlt') + '\\n' + 'Gewerk: ' + $json.trade + '\\n\\n' + 'Worum es geht: ' + $json.summary + '\\n\\n' + 'Bitte sofort zurückrufen. Bei Gasgeruch an die Störungsnummer des Gasversorgers bzw. 112 verweisen.' }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "80081757-8930-4566-9dd7-3ffb25aef40a",
+      "name": "Alert emergency service",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c0f6d062-3746-4655-ae5f-c0551a798b21",
+              "leftValue": "={{ $json.needsFollowUp }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c7bf4b07-dd3b-4414-bc89-8b960d1f2650",
+      "name": "Details missing?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $('Settings').first().json.senderAddress }}",
+        "toEmail": "={{ $json.senderEmail }}",
+        "subject": "={{ 'Re: ' + $json.subject }}",
+        "emailFormat": "text",
+        "text": "={{ 'Guten Tag' + ($json.customerName ? ' ' + $json.customerName : '') + ',\\n\\n' + 'vielen Dank für Ihre Anfrage. Damit wir Ihnen schnell einen Termin anbieten können, fehlen uns noch folgende Angaben:\\n\\n' + $json.missingInfo.map(m => '- ' + m).join('\\n') + '\\n\\nAntworten Sie einfach auf diese E-Mail. Wir melden uns, sobald die Angaben da sind.\\n\\n' + 'Freundliche Grüße\\n' + $('Settings').first().json.companyName }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "7bd3fd57-413b-4f3d-91ae-2c12e70fa7a0",
+      "name": "Ask customer for missing details",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        1220,
+        520
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Sort customer inquiries for trade businesses (plumbing, heating, HVAC)\n\n**Who it is for:** Handwerksbetriebe (SHK, Elektro) that receive many inquiries by email and lose jobs because nobody answers fast enough.\n\n**What it does**\n1. Reads every new email in the inquiry mailbox (IMAP, works with any provider).\n2. An AI model extracts name, phone, job address, trade, type of job, device and urgency. It never invents missing data.\n3. Real emergencies (water leak, no heating, gas smell) go to the on-call address immediately.\n4. If phone, address or device details are missing, the customer gets a polite German email asking for exactly those.\n5. Every inquiry lands as one row in a Google Sheet, with a status column for the office.\n\n**Setup**\n- Add IMAP and SMTP credentials of your inquiry mailbox.\n- Add an OpenAI credential (or swap the chat model for any other).\n- Create a Google Sheet with a tab `Anfragen` and these headers in row 1: Eingang, Dringlichkeit, Kunde, Telefon, E-Mail, Einsatzort, Im Einzugsgebiet, Gewerk, Art, Gerät, Objekt, Wunschtermin, Zusammenfassung, Fehlende Angaben, Status. Paste its URL into **Save to inquiry sheet**.\n- Edit the **Settings** node: company name, postcode prefixes of your service area, sender address, on-call address.\n\n**Adapt it**\n- Change the trades and the emergency rules in **Extract inquiry details**.\n- Change what counts as missing in **Prepare inquiry**.\n- Replace the on-call email with SMS, Telegram or Signal if your team prefers it.\n\nBuilt by [azurai](https://azurai.de), AI automation for SMEs in Germany, Austria and Switzerland.",
+        "height": 860,
+        "width": 520
+      },
+      "id": "51e84f91-183c-485c-b5be-3067c917d484",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -600,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 1. Read and understand\nSettings holds everything you need to change. The AI only extracts what the customer wrote; empty fields stay empty.",
+        "height": 420,
+        "width": 560
+      },
+      "id": "ea9c53fe-7269-4c3f-888c-ea030f5137d2",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        160,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 2. Decide and act\n- Every inquiry is saved to the sheet.\n- Emergencies alert the on-call team at once.\n- Missing details trigger one follow-up email, except for emergencies (call back instead) and jobs outside the service area.",
+        "height": 800,
+        "width": 660
+      },
+      "id": "74dbb560-fbfc-43f5-979d-d2a5aade39e3",
+      "name": "Sticky Note2",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        700,
+        -160
+      ]
+    }
+  ],
+  "connections": {
+    "New inquiry email": {
+      "main": [
+        [
+          {
+            "node": "Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Settings": {
+      "main": [
+        [
+          {
+            "node": "Extract inquiry details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extract inquiry details",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract inquiry details": {
+      "main": [
+        [
+          {
+            "node": "Prepare inquiry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare inquiry": {
+      "main": [
+        [
+          {
+            "node": "Sheet row",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Emergency?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Details missing?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheet row": {
+      "main": [
+        [
+          {
+            "node": "Save to inquiry sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Emergency?": {
+      "main": [
+        [
+          {
+            "node": "Alert emergency service",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Details missing?": {
+      "main": [
+        [
+          {
+            "node": "Ask customer for missing details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
